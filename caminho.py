@@ -35,10 +35,10 @@ class Caminho:
     def gerar_caminho(self):
         caminho = [self.caminho(s) for s in range(self.s_min, self.s_max)]
         for i in range(1, len(caminho)):
-            if (caminho[i].roll - caminho[i-1].roll) > np.pi / 2:
+            if (caminho[i][4] - caminho[i-1][4]) > np.pi / 2:
                 for j in range(i, len(caminho)):
-                    caminho[j].roll -= np.pi
-            if (caminho[i].pitch - caminho[i-1].pitch) > np.pi / 2:
+                    caminho[j][4] -= np.pi
+            if (caminho[i][5] - caminho[i-1][5]) > np.pi / 2:
                 for j in range(i, len(caminho)):
-                    caminho[j].pitch -= np.pi
+                    caminho[j][5] -= np.pi
         return np.array(caminho)

@@ -1,5 +1,4 @@
 import numpy as np
-from utils import Vector3d
 from quadrimotor import Quadrimotor
 
 
@@ -7,12 +6,12 @@ class ControladorDinamico:
     """
     vr = ku^{-1} (K (vd - vb) + Kv vb)
     """
-    K: Vector3d
+    K: np.ndarray
     modelo: Quadrimotor
 
     def __init__(
         self,
-        K: Vector3d,
+        K: np.ndarray,
         modelo: Quadrimotor,
     ):
         self.K = K

@@ -23,11 +23,12 @@ class Quadrimotor:
         self.velocity = velocity
 
     def cinematica_direta(self) -> np.ndarray:
-        yaw = np.deg2rad(45)
+        yaw = self.pose[3]
         return np.array([
-            [np.cos(yaw), -np.sin(yaw), 0],
-            [np.sin(yaw), np.cos(yaw), 0],
-            [0, 0, 1]
+            [np.cos(yaw), -np.sin(yaw), 0, 0],
+            [np.sin(yaw), np.cos(yaw), 0, 0],
+            [0, 0, 1, 0],
+            [0, 0, 0, 1]
         ])
 
     def cinemática_inversa(self) -> np.ndarray:

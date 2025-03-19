@@ -41,7 +41,7 @@ if __name__ == '__main__':
         Kv=np.array([0.18227, 0.17095, 4.001, 4.7895]),
         # pose=Pose(2.0, 1.0, 0.5, 0.0, 0.0, np.deg2rad(45.0)),
         pose=np.array([1.0, 0.0, 1.5, np.deg2rad(45.0)]),
-        velocity=(0.0, 0.0, 0.0),
+        velocity=(0.0, 0.0, 0.0, 0.0),
     )
 
     controlador_cinematico = ControladorCinematico(
@@ -66,9 +66,9 @@ if __name__ == '__main__':
     )
 
     # Extract X, Y, Z coordinates from target_path
-    target_x = [pose.x for pose in controlador.caminho]
-    target_y = [pose.y for pose in controlador.caminho]
-    target_z = [pose.z for pose in controlador.caminho]
+    target_x = controlador.caminho[:,0]
+    target_y = controlador.caminho[:,1]
+    target_z = controlador.caminho[:,2]
 
     x_vals, y_vals, z_vals = [], [], []
     fig = plt.figure()
@@ -83,11 +83,11 @@ if __name__ == '__main__':
         ax.clear()
         ax.plot(target_x, target_y, target_z, 'r--', label="Target Path", marker="x")
         ax.plot(x_vals, y_vals, z_vals, 'b-', label="Robot Trajectory", marker="o")
-        ax.plot([pose.x], [pose.y], [pose.z], 'y-', label="Robot Current Location", marker="o")
+        ax.plot([pose[0]], [pose[1]], [pose[2]], 'y-', label="Robot Current Location", marker="o")
 
-        x_vals.append(pose.x)
-        y_vals.append(pose.y)
-        z_vals.append(pose.z)
+        x_vals.append(pose[0])
+        y_vals.append(pose[1])
+        z_vals.append(pose[2])
 
         # Labels and title
         ax.set_xlabel("X")
