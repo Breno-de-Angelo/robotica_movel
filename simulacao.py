@@ -14,16 +14,18 @@ if __name__ == '__main__':
         xpc = np.cos(2 * np.pi * s / 25)
         ypc = np.sin(2 * np.pi * s / 25)
         zpc = 1.5
+        phipc = 0.0
 
         dxpc = -2 * np.pi / 25 * np.sin(2 * np.pi * s / 25)
         dypc = 2 * np.pi / 25 * np.cos(2 * np.pi * s / 25)
-        dzpc = 0
+        dzpc = 0.0
+        dphipc = 0.0
 
         betat = np.arctan2(dypc, dxpc)
         vxy = np.sqrt(dxpc**2 + dypc**2)
         tetat = np.arctan2(dzpc, vxy)
 
-        return np.array([xpc, ypc, zpc, betat, tetat])
+        return np.array([xpc, ypc, zpc, phipc, betat, tetat])
 
     caminho = Caminho(
         caminho=caminho_generator,
@@ -35,16 +37,16 @@ if __name__ == '__main__':
     )
 
     quadrimotor = Quadrimotor(
-        Ku=np.array([0.8417, 0.8354, 3.966]), # phi -> 9,8524
-        Kv=np.array([0.18227, 0.17095, 4.001]), # phi -> 4,7295
+        Ku=np.array([0.8417, 0.8354, 3.966, 9.854]),
+        Kv=np.array([0.18227, 0.17095, 4.001, 4.7895]),
         # pose=Pose(2.0, 1.0, 0.5, 0.0, 0.0, np.deg2rad(45.0)),
-        pose=np.array([1.0, 0.0, 1.5, 0.0, 0.0, np.deg2rad(45.0)]),
+        pose=np.array([1.0, 0.0, 1.5, np.deg2rad(45.0)]),
         velocity=(0.0, 0.0, 0.0),
     )
 
     controlador_cinematico = ControladorCinematico(
-        Kp=np.array([1.0, 1.0, 1.0]),
-        Ls=np.array([1.0, 1.0, 1.0]),
+        Kp=np.array([1.0, 1.0, 1.0, 1.0]),
+        Ls=np.array([1.0, 1.0, 1.0, 1.0]),
         delta=0.025,
         Vd=0.20,
         modelo=quadrimotor,
