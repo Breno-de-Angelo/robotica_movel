@@ -81,7 +81,7 @@ class TrajectoryController(Node):
         self.current_pose = np.array([0.0, 0.0, 0.0, 0.0])
         self.world_frame_current_velocity = np.array([0.0, 0.0, 0.0, 0.0])
 
-    def trajetoria_fn(self, t: float):
+    def trajectory_fn(self, t: float):
         xd = np.cos(2 * np.pi * t / 25)
         yd = np.sin(2 * np.pi * t / 25)
         zd = 1.5
@@ -107,7 +107,7 @@ class TrajectoryController(Node):
             self.get_logger().info("End of trajectory")
             return
 
-        desired_pose, desired_velocity = self.trajetoria_fn(t)
+        desired_pose, desired_velocity = self.trajectory_fn(t)
         pose_error = desired_pose - self.current_pose
         self.error_data.append(pose_error)
         self.time_data.append(t)
