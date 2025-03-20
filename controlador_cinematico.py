@@ -34,34 +34,35 @@ class ControladorCinematico:
         s_atual: int,
         caminho: np.ndarray,
     ):
-        posicao_atual = self.modelo.pose
-        vetor_distancias = np.linalg.norm(caminho[:,:4] - posicao_atual, axis=0)
-        s_ponto_mais_proximo = np.argmin(vetor_distancias)
+        # posicao_atual = self.modelo.pose
+        # vetor_distancias = np.linalg.norm(caminho[:,1:4] - posicao_atual[:3], axis=1)
+        # index_ponto_mais_proximo = np.argmin(vetor_distancias)
 
-        print(s_ponto_mais_proximo)
-        print(vetor_distancias)
-        print(f"Distancia: {vetor_distancias[s_ponto_mais_proximo]}")
-        
-        if (vetor_distancias[s_ponto_mais_proximo] > self.delta):
+        posicao_atual = self.modelo.pose[:3]
+        pose_atual = self.modelo.pose[:4]
+        index_ponto_mais_proximo = np.where(caminho[:, 0] == s_atual)[0][0]
+        distancia = np.linalg.norm(caminho[index_ponto_mais_proximo][1:4] - posicao_atual)
+        print(f"Distancia: {distancia}")
+        if (distancia > self.delta):
             velocidade_seguimento = 0
-            s = s_ponto_mais_proximo
         else:
             velocidade_seguimento = self.Vd
-            s = s_atual + 1
+            index_ponto_mais_proximo += 1
+
+        if index_ponto_mais_proximo >= len(caminho):
+            # Finalizou caminho
+            return None
+        s = caminho[index_ponto_mais_proximo, 0]
+        print(f"s={s}")
 
         cinematica_inversa = self.modelo.cinemática_inversa()
         velocidade_seguimento_mundo = np.array([
-            velocidade_seguimento * np.cos(caminho[s][4]) * np.cos(caminho[s][5]),
-            velocidade_seguimento * np.cos(caminho[s][4]) * np.sin(caminho[s][5]),
-            velocidade_seguimento * np.sin(caminho[s][4]),
+            velocidade_seguimento * np.cos(caminho[index_ponto_mais_proximo][6]) * np.cos(caminho[index_ponto_mais_proximo][5]),
+            velocidade_seguimento * np.cos(caminho[index_ponto_mais_proximo][6]) * np.sin(caminho[index_ponto_mais_proximo][5]),
+            velocidade_seguimento * np.sin(caminho[index_ponto_mais_proximo][6]),
             0.0
         ])
-        # velocidade_aproximacao = np.array([
-        #     self.Ls.x * np.tanh(self.Kp[0] * (caminho[s].x - posicao_atual.x)),
-        #     self.Ls.y * np.tanh(self.Kp[1] * (caminho[s].y - posicao_atual.y)),
-        #     self.Ls.z * np.tanh(self.Kp[2] * (caminho[s].z - posicao_atual.z)),
-        # ])
-        velocidade_aproximacao = self.Ls * np.tanh(self.Kp) * (caminho[s][:4] - posicao_atual)
+        velocidade_aproximacao = self.Ls * np.tanh(self.Kp) * (caminho[index_ponto_mais_proximo][1:5] - pose_atual)
 
         vd = cinematica_inversa @ (velocidade_seguimento_mundo + velocidade_aproximacao)
 

@@ -33,12 +33,12 @@ class Caminho:
         self.Vd = Vd
 
     def gerar_caminho(self):
-        caminho = [self.caminho(s) for s in range(self.s_min, self.s_max)]
+        caminho = [[s, *self.caminho(s)] for s in np.linspace(self.s_min, self.s_max, self.N)]
         for i in range(1, len(caminho)):
-            if (caminho[i][4] - caminho[i-1][4]) > np.pi / 2:
-                for j in range(i, len(caminho)):
-                    caminho[j][4] -= np.pi
             if (caminho[i][5] - caminho[i-1][5]) > np.pi / 2:
                 for j in range(i, len(caminho)):
                     caminho[j][5] -= np.pi
+            if (caminho[i][6] - caminho[i-1][6]) > np.pi / 2:
+                for j in range(i, len(caminho)):
+                    caminho[j][6] -= np.pi
         return np.array(caminho)

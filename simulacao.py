@@ -66,9 +66,9 @@ if __name__ == '__main__':
     )
 
     # Extract X, Y, Z coordinates from target_path
-    target_x = controlador.caminho[:,0]
-    target_y = controlador.caminho[:,1]
-    target_z = controlador.caminho[:,2]
+    target_x = controlador.caminho[:,1]
+    target_y = controlador.caminho[:,2]
+    target_z = controlador.caminho[:,3]
 
     x_vals, y_vals, z_vals = [], [], []
     fig = plt.figure()

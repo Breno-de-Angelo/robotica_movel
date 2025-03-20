@@ -34,13 +34,15 @@ class ControladorLacoInternoLacoExterno:
         self.s = 0
     
     def forward(self):
-        vd, self.s = self.controlador_cinemático.forward(
+        resultado_cinematico = self.controlador_cinemático.forward(
             s_atual=self.s,
             caminho=self.caminho,
         )
+        if resultado_cinematico is None:
+            # Chegou ao fim do caminho
+            return True
+
+        vd, self.s = resultado_cinematico
         vr = self.controlador_dinâmico.forward(vd)
         self.quadrimotor.update(vr, self.T)
-        
-        if self.s > self.s_max:
-            return True
         return False
