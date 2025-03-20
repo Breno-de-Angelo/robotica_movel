@@ -3,10 +3,16 @@ import time
 import matplotlib.pyplot as plt
 import rclpy
 from rclpy.node import Node
+from nav_msgs.msg import Odometry
 
 class TrajectoryController(Node):
     def __init__(self):
         super().__init__('trajectory_controller')
+        
+        # Declare simulation parameter
+        self.declare_parameter('simulation', True)
+        self.simulation = self.get_parameter('simulation').get_parameter_value().bool_value
+
         self.timer = self.create_timer(1.0 / 30.0, self.control_loop)  # 30 Hz timer
         
         # Four Axis model
@@ -21,9 +27,20 @@ class TrajectoryController(Node):
         # Dynamic controller gains
         self.K = np.diag([1.0, 1.0, 1.0, 1.0])
 
+        # Initialize state variables
         self.current_pose = np.array([1.0, 0.0, 1.5, np.deg2rad(45.0)])
         self.world_frame_current_velocity = np.array([0.0, 0.0, 0.0, 0.0])
         
+        # Setup odometry subscription if not in simulation
+        if not self.simulation:
+            self.subscription = self.create_subscription(
+                Odometry,
+                'robot_pose',
+                self.odom_callback,
+                10
+            )
+            self.get_logger().info("Using real robot odometry")
+
         self.body_frame_velocity_kinematic_command = np.array([0.0, 0.0, 0.0, 0.0])
         self.t_start = time.time()
         self.error_data = []
@@ -33,6 +50,36 @@ class TrajectoryController(Node):
         self.fig = plt.figure(figsize=(10, 8))
         self.ax1 = self.fig.add_subplot(211, projection='3d')
         self.ax2 = self.fig.add_subplot(212)
+
+    def odom_callback(self, msg):
+        # # Extract position
+        # x = msg.pose.pose.position.x
+        # y = msg.pose.pose.position.y
+        # z = msg.pose.pose.position.z
+
+        # # Extract orientation (quaternion to yaw)
+        # q = msg.pose.pose.orientation
+        # quaternion = [q.x, q.y, q.z, q.w]
+        # (roll, pitch, yaw) = euler_from_quaternion(quaternion)
+
+        # # Extract body frame velocities
+        # vx_body = msg.twist.twist.linear.x
+        # vy_body = msg.twist.twist.linear.y
+        # vz_body = msg.twist.twist.linear.z
+        # yaw_rate = msg.twist.twist.angular.z
+
+        # # Convert body linear velocities to world frame
+        # cos_yaw = np.cos(yaw)
+        # sin_yaw = np.sin(yaw)
+        # vx_world = vx_body * cos_yaw - vy_body * sin_yaw
+        # vy_world = vx_body * sin_yaw + vy_body * cos_yaw
+        # vz_world = vz_body
+
+        # # Update current pose and velocity
+        # self.current_pose = np.array([x, y, z, yaw])
+        # self.world_frame_current_velocity = np.array([vx_world, vy_world, vz_world, yaw_rate])
+        self.current_pose = np.array([0.0, 0.0, 0.0, 0.0])
+        self.world_frame_current_velocity = np.array([0.0, 0.0, 0.0, 0.0])
 
     def trajetoria_fn(self, t: float):
         xd = np.cos(2 * np.pi * t / 25)
@@ -104,10 +151,12 @@ class TrajectoryController(Node):
 
         plt.pause(0.01)
 
-        # Robot model update
-        acceleration = self.Ku @ body_frame_velocity_dynamic_command - self.Kv @ self.world_frame_current_velocity
-        self.world_frame_current_velocity += acceleration / 30.0
-        self.current_pose += self.world_frame_current_velocity / 30.0
+        # Update robot model only in simulation
+        if self.simulation:
+            # Robot model update
+            acceleration = self.Ku @ body_frame_velocity_dynamic_command - self.Kv @ self.world_frame_current_velocity
+            self.world_frame_current_velocity += acceleration / 30.0
+            self.current_pose += self.world_frame_current_velocity / 30.0
 
 
 def main(args=None):
