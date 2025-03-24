@@ -1,11 +1,11 @@
 import numpy as np
-import rclpy
-from rclpy.node import Node
+import rospy
 from geometry_msgs.msg import TwistStamped, PoseStamped
+from tf.transformations import quaternion_from_euler
 
-class RobotSimulator(Node):
+class RobotSimulator:
     def __init__(self):
-        super().__init__('robot_simulator')
+        rospy.init_node('robot_simulator', anonymous=True)
         
         # Robot dynamics parameters
         self.Ku = np.diag([0.8417, 0.8354, 3.966, 9.8524])
@@ -16,22 +16,13 @@ class RobotSimulator(Node):
         self.world_frame_current_velocity = np.array([0.0, 0.0, 0.0, 0.0])
 
         # Subscriber for cmd_vel
-        self.cmd_vel_sub = self.create_subscription(
-            TwistStamped,
-            '/cmd_vel',
-            self.cmd_vel_callback,
-            10
-        )
+        self.cmd_vel_sub = rospy.Subscriber('/cmd_vel', TwistStamped, self.cmd_vel_callback)
 
         # Publisher for current pose
-        self.pose_pub = self.create_publisher(
-            PoseStamped,
-            '/current_pose',
-            10
-        )
+        self.pose_pub = rospy.Publisher('/current_pose', PoseStamped, queue_size=10)
 
         # Timer for updating and publishing pose at 200 Hz
-        self.timer = self.create_timer(1.0 / 200.0, self.update_pose)
+        self.timer = rospy.Timer(rospy.Duration(1.0 / 200.0), self.update_pose)
 
     def cmd_vel_callback(self, msg):
         # Extract body frame velocities from TwistStamped
@@ -51,7 +42,7 @@ class RobotSimulator(Node):
         # Update world frame velocity
         self.world_frame_current_velocity = np.array([vx_world, vy_world, vz_world, yaw_rate])
 
-    def update_pose(self):
+    def update_pose(self, event):
         # Update robot pose using the dynamics model
         acceleration = self.Ku @ self.world_frame_current_velocity - self.Kv @ self.world_frame_current_velocity
         self.world_frame_current_velocity += acceleration / 200.0
@@ -59,21 +50,24 @@ class RobotSimulator(Node):
 
         # Publish current pose as PoseStamped
         pose_msg = PoseStamped()
-        pose_msg.header.stamp = self.get_clock().now().to_msg()
+        pose_msg.header.stamp = rospy.Time.now()
         pose_msg.header.frame_id = 'world'
         pose_msg.pose.position.x = self.current_pose[0]
         pose_msg.pose.position.y = self.current_pose[1]
         pose_msg.pose.position.z = self.current_pose[2]
-        pose_msg.pose.orientation.w = np.cos(self.current_pose[3] / 2)
-        pose_msg.pose.orientation.z = np.sin(self.current_pose[3] / 2)
+        
+        # Convert yaw to quaternion
+        q = quaternion_from_euler(0, 0, self.current_pose[3])
+        pose_msg.pose.orientation.x = q[0]
+        pose_msg.pose.orientation.y = q[1]
+        pose_msg.pose.orientation.z = q[2]
+        pose_msg.pose.orientation.w = q[3]
+        
         self.pose_pub.publish(pose_msg)
 
-def main(args=None):
-    rclpy.init(args=args)
-    simulator = RobotSimulator()
-    rclpy.spin(simulator)
-    simulator.destroy_node()
-    rclpy.shutdown()
-
 if __name__ == '__main__':
-    main()
+    try:
+        simulator = RobotSimulator()
+        rospy.spin()
+    except rospy.ROSInterruptException:
+        pass

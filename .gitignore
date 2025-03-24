@@ -1,6 +1,7 @@
 .vscode
 *.pyc
 build/
-install/
+devel/
+.catkin_workspace
 log/
 *.mat

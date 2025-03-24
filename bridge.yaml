@@ -1,9 +1,0 @@
-topics:
-  -
-    topic: /natnet_ros/B1/pose
-    type: geometry_msgs/msg/PoseStamped
-    queue_size: 1
-  -
-    topic: /cmd_vel
-    type: geometry_msgs/msg/TwistStamped
-    queue_size: 1
