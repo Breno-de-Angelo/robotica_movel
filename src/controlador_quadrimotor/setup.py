@@ -21,7 +21,8 @@ setup(
     entry_points={
         'console_scripts': [
             'seguimento_trajetoria = controlador_quadrimotor.seguimento_trajetoria:main',
-            'seguimento_caminho = controlador_quadrimotor.seguimento_caminho:main'
+            'seguimento_caminho = controlador_quadrimotor.seguimento_caminho:main',
+            'simulador = controlador_quadrimotor.simulador:main',
         ],
     },
 )

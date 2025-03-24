@@ -1,51 +1,42 @@
 import numpy as np
+import rclpy
+from rclpy.node import Node
+from geometry_msgs.msg import PoseStamped, TwistStamped
 import time
 import matplotlib.pyplot as plt
-import rclpy
 import scipy.io
-from rclpy.node import Node
-from nav_msgs.msg import Odometry
 
 class TrajectoryController(Node):
     def __init__(self):
         super().__init__('trajectory_controller')
-        
-        # Declare simulation parameter
-        self.declare_parameter('simulation', True)
-        self.simulation = self.get_parameter('simulation').get_parameter_value().bool_value
-
-        self.timer = self.create_timer(1.0 / 30.0, self.control_loop)  # 30 Hz timer
-        
-        # Four Axis model
-        self.Ku = np.diag([0.8417, 0.8354, 3.966, 9.8524])
-        self.Ku_inverse = np.linalg.inv(self.Ku)
-        self.Kv = np.diag([0.18227, 0.17095, 4.001, 4.7295])
 
         # Kinematic controller gains
         self.Kp = np.diag([10.0, 10.0, 10.0, 10.0])
         self.Ls = np.array([1.0, 1.0, 1.0, 1.0])
 
-        # Dynamic controller gains
-        self.K = np.diag([1.0, 1.0, 1.0, 1.0])
-
         # Initialize state variables
-        # self.current_pose = np.array([1.0, 0.0, 1.5, np.deg2rad(45.0)])
         self.current_pose = np.array([2.0, -1.0, 0.5, np.deg2rad(5.0)])
         self.world_frame_current_velocity = np.array([0.0, 0.0, 0.0, 0.0])
-        
-        # Setup odometry subscription if not in simulation
-        if not self.simulation:
-            self.subscription = self.create_subscription(
-                Odometry,
-                'robot_pose',
-                self.odom_callback,
-                10
-            )
-            self.get_logger().info("Using real robot odometry")
-
-        self.body_frame_velocity_kinematic_command = np.array([0.0, 0.0, 0.0, 0.0])
         self.t_start = time.time()
-        
+
+        # Subscriber for current pose
+        self.pose_sub = self.create_subscription(
+            PoseStamped,
+            '/natnet_ros/B1/pose',
+            self.pose_callback,
+            10
+        )
+
+        # Publisher for cmd_vel
+        self.cmd_vel_pub = self.create_publisher(
+            TwistStamped,
+            '/cmd_vel',
+            10
+        )
+
+        # Timer for control loop
+        self.timer = self.create_timer(1.0 / 30.0, self.control_loop)
+
         # Data to be saved
         self.error_data = []
         self.time_data = []
@@ -60,35 +51,29 @@ class TrajectoryController(Node):
         self.ax2 = self.fig.add_subplot(212)
         self.ax2_psi = self.ax2.twinx()
 
-    def odom_callback(self, msg):
-        # # Extract position
-        # x = msg.pose.pose.position.x
-        # y = msg.pose.pose.position.y
-        # z = msg.pose.pose.position.z
+        # Precompute trajectory points for plotting
+        self.trajectory_times = np.linspace(0.0, 75.0, 501)
+        self.trajectory_points = np.array([self.trajectory_fn(t)[0] for t in self.trajectory_times])
 
-        # # Extract orientation (quaternion to yaw)
-        # q = msg.pose.pose.orientation
-        # quaternion = [q.x, q.y, q.z, q.w]
-        # (roll, pitch, yaw) = euler_from_quaternion(quaternion)
+    def pose_callback(self, msg):
+        # Extract current pose from PoseStamped
+        self.get_logger().info(f"{msg.pose.position.x}, {msg.pose.position.y}, {msg.pose.position.z}")
+        if (msg.pose.position.x > 2.0 or msg.pose.position.x < -2.0) or \
+            (msg.pose.position.y > 2.0 or msg.pose.position.y < -2.0) or \
+            (msg.pose.position.z > 2.5 or msg.pose.position.z < 0.0):
+            cmd_vel_msg = TwistStamped()
+            cmd_vel_msg.header.stamp = self.get_clock().now().to_msg()
+            cmd_vel_msg.header.frame_id = 'base_link'
+            self.cmd_vel_pub.publish(cmd_vel_msg)
+            self.get_logger().info("World exceeded...")
+            shutdown_module()
 
-        # # Extract body frame velocities
-        # vx_body = msg.twist.twist.linear.x
-        # vy_body = msg.twist.twist.linear.y
-        # vz_body = msg.twist.twist.linear.z
-        # yaw_rate = msg.twist.twist.angular.z
-
-        # # Convert body linear velocities to world frame
-        # cos_yaw = np.cos(yaw)
-        # sin_yaw = np.sin(yaw)
-        # vx_world = vx_body * cos_yaw - vy_body * sin_yaw
-        # vy_world = vx_body * sin_yaw + vy_body * cos_yaw
-        # vz_world = vz_body
-
-        # # Update current pose and velocity
-        # self.current_pose = np.array([x, y, z, yaw])
-        # self.world_frame_current_velocity = np.array([vx_world, vy_world, vz_world, yaw_rate])
-        self.current_pose = np.array([0.0, 0.0, 0.0, 0.0])
-        self.world_frame_current_velocity = np.array([0.0, 0.0, 0.0, 0.0])
+        self.current_pose = np.array([
+            msg.pose.position.x,
+            msg.pose.position.y,
+            msg.pose.position.z,
+            2 * np.arctan2(msg.pose.orientation.z, msg.pose.orientation.w)
+        ])
 
     def trajectory_fn(self, t: float):
         xd = np.cos(2 * np.pi * t / 25)
@@ -113,6 +98,10 @@ class TrajectoryController(Node):
         current_time = time.time()
         t = current_time - self.t_start
         if t > 75:
+            cmd_vel_msg = TwistStamped()
+            cmd_vel_msg.header.stamp = self.get_clock().now().to_msg()
+            cmd_vel_msg.header.frame_id = 'base_link'
+            self.cmd_vel_pub.publish(cmd_vel_msg)
             self.save_results()
             self.get_logger().info("End of trajectory. Exiting...")
             shutdown_module()
@@ -129,28 +118,35 @@ class TrajectoryController(Node):
         A_inverse = np.linalg.inv(A)
         world_frame_velocity_kinematic_command = desired_velocity + self.Ls * np.tanh(self.Kp @ pose_error)
         new_body_frame_velocity_kinematic_command = A_inverse @ world_frame_velocity_kinematic_command
-        derivative_body_frame_velocity_kinematic_command = (new_body_frame_velocity_kinematic_command - self.body_frame_velocity_kinematic_command) * 30.0
-        self.body_frame_velocity_kinematic_command = new_body_frame_velocity_kinematic_command
-        body_frame_current_velocity = A_inverse @ self.world_frame_current_velocity
 
-        body_frame_velocity_dynamic_command = self.Ku_inverse @ (
-            derivative_body_frame_velocity_kinematic_command + self.K @ (self.body_frame_velocity_kinematic_command - body_frame_current_velocity) + self.Kv @ body_frame_current_velocity
-        )
-        self.velocity_command_data.append(body_frame_velocity_dynamic_command)
+        # Publish cmd_vel as TwistStamped
+        cmd_vel_msg = TwistStamped()
+        cmd_vel_msg.header.stamp = self.get_clock().now().to_msg()
+        cmd_vel_msg.header.frame_id = 'base_link'
+        cmd_vel_msg.twist.linear.x = new_body_frame_velocity_kinematic_command[0]
+        cmd_vel_msg.twist.linear.y = new_body_frame_velocity_kinematic_command[1]
+        cmd_vel_msg.twist.linear.z = new_body_frame_velocity_kinematic_command[2]
+        cmd_vel_msg.twist.angular.z = new_body_frame_velocity_kinematic_command[3]
+        self.cmd_vel_pub.publish(cmd_vel_msg)
+        self.velocity_command_data.append(new_body_frame_velocity_kinematic_command)
 
+        # Update plots
+        self.update_plots(desired_pose)
+
+    def update_plots(self, desired_pose):
         # Update trajectory plot
         self.ax1.clear()
-        t_values = np.linspace(0, 75, 500)
-        trajectory = np.array([self.trajectory_fn(t)[0] for t in t_values])
-        self.ax1.plot(trajectory[:, 0], trajectory[:, 1], trajectory[:, 2], 'r--', label="Target Path")
-        self.ax1.plot([desired_pose[0]], [desired_pose[1]], [desired_pose[2]], 'yo', label="Robot Goal")
-        self.ax1.plot([self.current_pose[0]], [self.current_pose[1]], [self.current_pose[2]], 'bo', label="Robot Current Location")
+        self.ax1.plot(self.trajectory_points[:, 0], self.trajectory_points[:, 1], self.trajectory_points[:, 2], 'r--', label="Target Trajectory")
+        self.ax1.plot([desired_pose[0]], [desired_pose[1]], [desired_pose[2]], 'yo', label="Desired Position")
+        self.ax1.plot([self.current_pose[0]], [self.current_pose[1]], [self.current_pose[2]], 'bo', label="Robot Position")
         self.ax1.set_xlabel("X")
         self.ax1.set_ylabel("Y")
         self.ax1.set_zlabel("Z")
-        self.ax1.set_title("Trajetória 3D")
+        self.ax1.set_title("3D Trajectory Tracking")
         if self.ax1_xlim is None:
-            self.ax1_xlim, self.ax1_ylim, self.ax1_zlim = self.ax1.get_xlim(), self.ax1.get_ylim(), self.ax1.get_ylim()
+            self.ax1_xlim = self.ax1.get_xlim()
+            self.ax1_ylim = self.ax1.get_ylim()
+            self.ax1_zlim = self.ax1.get_zlim()
         else:
             self.ax1.set_xlim(self.ax1_xlim)
             self.ax1.set_ylim(self.ax1_ylim)
@@ -160,25 +156,20 @@ class TrajectoryController(Node):
         # Update error plot
         self.ax2.clear()
         self.ax2_psi.cla()
-        errors = np.array(self.error_data)
-        self.ax2.plot(self.time_data, errors[:, 0], label="X Error")
-        self.ax2.plot(self.time_data, errors[:, 1], label="Y Error")
-        self.ax2.plot(self.time_data, errors[:, 2], label="Z Error")
-        self.ax2_psi.plot(self.time_data, np.rad2deg(errors[:, 3]), label="Psi Error (deg)", color='purple', linestyle='dashed')
-        self.ax2.set_xlabel("Time (s)")
-        self.ax2.set_ylabel("Error")
-        self.ax2.set_title("Pose Error Over Time")
-        self.ax2.legend(loc="upper left")
-        self.ax2_psi.legend(loc="upper right")
+        if self.time_data:
+            errors = np.array(self.error_data)
+            self.ax2.plot(self.time_data, errors[:, 0], label="X Error")
+            self.ax2.plot(self.time_data, errors[:, 1], label="Y Error")
+            self.ax2.plot(self.time_data, errors[:, 2], label="Z Error")
+            self.ax2_psi.plot(self.time_data, np.rad2deg(errors[:, 3]), color='purple', linestyle='dashed', label="Psi Error (deg)")
+            self.ax2.set_xlabel("Time (s)")
+            self.ax2.set_ylabel("Error (m)")
+            self.ax2_psi.set_ylabel("Psi Error (deg)")
+            self.ax2.set_title("Tracking Errors Over Time")
+            self.ax2.legend(loc="upper left")
+            self.ax2_psi.legend(loc="upper right")
 
         plt.pause(0.01)
-
-        # Update robot model only in simulation
-        if self.simulation:
-            # Robot model update
-            acceleration = self.Ku @ body_frame_velocity_dynamic_command - self.Kv @ self.world_frame_current_velocity
-            self.world_frame_current_velocity += acceleration / 30.0
-            self.current_pose += self.world_frame_current_velocity / 30.0
 
     def save_results(self):
         if self.error_data and self.time_data:
@@ -203,7 +194,6 @@ def main(args=None):
     rclpy.spin(controller)
     controller.destroy_node()
     rclpy.shutdown()
-    plt.show()
 
 if __name__ == '__main__':
     main()

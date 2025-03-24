@@ -1,27 +1,18 @@
 import numpy as np
+import rclpy
 import time
 import matplotlib.pyplot as plt
-import rclpy
 import scipy.io
 from rclpy.node import Node
-from nav_msgs.msg import Odometry
+from geometry_msgs.msg import PoseStamped, TwistStamped
 
 class PathController(Node):
     def __init__(self):
         super().__init__('path_controller')
         
         # Declare parameters
-        self.declare_parameter('simulation', True)
-        self.simulation = self.get_parameter('simulation').get_parameter_value().bool_value
         self.declare_parameter('epsilon', 0.05)
         self.epsilon = self.get_parameter('epsilon').get_parameter_value().double_value
-
-        self.timer = self.create_timer(1.0 / 30.0, self.control_loop)  # 30 Hz timer
-        
-        # Four Axis model
-        self.Ku = np.diag([0.8417, 0.8354, 3.966, 9.8524])
-        self.Ku_inverse = np.linalg.inv(self.Ku)
-        self.Kv = np.diag([0.18227, 0.17095, 4.001, 4.7295])
 
         # Kinematic controller gains
         self.Kp = np.diag([10.0, 10.0, 10.0, 10.0])
@@ -29,21 +20,29 @@ class PathController(Node):
 
         # Dynamic controller gains
         self.K = np.diag([1.0, 1.0, 1.0, 1.0])
+        self.Ku = np.diag([0.8417, 0.8354, 3.966, 9.8524])
+        self.Ku_inverse = np.linalg.inv(self.Ku)
+        self.Kv = np.diag([0.18227, 0.17095, 4.001, 4.7295])
 
         # Initialize state variables
-        # self.current_pose = np.array([1.0, 0.0, 1.5, np.deg2rad(45.0)])
         self.current_pose = np.array([2.0, -1.0, 0.5, np.deg2rad(5.0)])
         self.world_frame_current_velocity = np.array([0.0, 0.0, 0.0, 0.0])
+        self.body_frame_velocity_kinematic_command = np.array([0.0, 0.0, 0.0, 0.0])
 
-        # Setup odometry subscription if not in simulation
-        if not self.simulation:
-            self.subscription = self.create_subscription(
-                Odometry,
-                'robot_pose',
-                self.odom_callback,
-                10
-            )
-            self.get_logger().info("Using real robot odometry")
+        # Subscriber for current pose
+        self.pose_sub = self.create_subscription(
+            PoseStamped,
+            '/current_pose',
+            self.pose_callback,
+            10
+        )
+
+        # Publisher for cmd_vel
+        self.cmd_vel_pub = self.create_publisher(
+            TwistStamped,
+            '/cmd_vel',
+            10
+        )
 
         # Precompute the path
         self.path_s_steps = np.linspace(0.0, 75.0, 501)
@@ -52,8 +51,8 @@ class PathController(Node):
         self.path_velocities = np.array([vel for (pose, vel) in self.path_points])
         self.current_target_index = 0
 
-        self.body_frame_velocity_kinematic_command = np.array([0.0, 0.0, 0.0, 0.0])
-        self.t_start = time.time()
+        # Timer for control loop
+        self.timer = self.create_timer(1.0 / 30.0, self.control_loop)
         
         # Data to be saved
         self.error_data = []
@@ -61,6 +60,7 @@ class PathController(Node):
         self.robot_pose_data = []
         self.desired_pose_data = []
         self.velocity_command_data = []
+        self.t_start = time.time()
 
         # Initialize plots
         self.fig = plt.figure(figsize=(10, 8))
@@ -69,10 +69,24 @@ class PathController(Node):
         self.ax2 = self.fig.add_subplot(212)
         self.ax2_psi = self.ax2.twinx()
 
-    def odom_callback(self, msg):
-        # Placeholder for real odometry processing
-        self.current_pose = np.array([0.0, 0.0, 0.0, 0.0])
-        self.world_frame_current_velocity = np.array([0.0, 0.0, 0.0, 0.0])
+    def pose_callback(self, msg):
+        # Extract current pose from PoseStamped
+        if msg.pose.position.x > 2.0 or msg.pose.position.x < -2.0 \
+            or msg.pose.position.y > 2.0 or msg.pose.position.y < -2.0 \
+            or msg.pose.position.z > 2.5 or msg.pose.position.z < 0.2:
+            cmd_vel_msg = TwistStamped()
+            cmd_vel_msg.header.stamp = self.get_clock().now().to_msg()
+            cmd_vel_msg.header.frame_id = 'base_link'
+            self.cmd_vel_pub.publish(cmd_vel_msg)
+            self.get_logger().info("World exceeded...")
+            shutdown_module()
+
+        self.current_pose = np.array([
+            msg.pose.position.x,
+            msg.pose.position.y,
+            msg.pose.position.z,
+            2 * np.arctan2(msg.pose.orientation.z, msg.pose.orientation.w)
+        ])
 
     def path_fn(self, s: float):
         xd = np.cos(2 * np.pi * s / 25)
@@ -117,9 +131,14 @@ class PathController(Node):
         else:
             self.current_target_index = self.current_target_index + 1
             if self.current_target_index >= len(self.path_points):
+                cmd_vel_msg = TwistStamped()
+                cmd_vel_msg.header.stamp = self.get_clock().now().to_msg()
+                cmd_vel_msg.header.frame_id = 'base_link'
+                self.cmd_vel_pub.publish(cmd_vel_msg)
                 self.save_results()
                 self.get_logger().info("Reached end of path. Exiting...")
                 shutdown_module()
+                return
 
         self.get_logger().info(f"index: {self.current_target_index}, min_dist: {min_dist}")
         desired_pose, desired_velocity = self.path_points[self.current_target_index]
@@ -138,15 +157,21 @@ class PathController(Node):
         A_inverse = np.linalg.inv(A)
         world_frame_velocity_kinematic_command = desired_velocity + self.Ls * np.tanh(self.Kp @ pose_error)
         new_body_frame_velocity_kinematic_command = A_inverse @ world_frame_velocity_kinematic_command
-        derivative_body_frame_velocity_kinematic_command = (new_body_frame_velocity_kinematic_command - self.body_frame_velocity_kinematic_command) * 30.0
-        self.body_frame_velocity_kinematic_command = new_body_frame_velocity_kinematic_command
-        body_frame_current_velocity = A_inverse @ self.world_frame_current_velocity
+        
+        # Publish cmd_vel as TwistStamped
+        cmd_vel_msg = TwistStamped()
+        cmd_vel_msg.header.stamp = self.get_clock().now().to_msg()
+        cmd_vel_msg.header.frame_id = 'base_link'
+        cmd_vel_msg.twist.linear.x = new_body_frame_velocity_kinematic_command[0]
+        cmd_vel_msg.twist.linear.y = new_body_frame_velocity_kinematic_command[1]
+        cmd_vel_msg.twist.linear.z = new_body_frame_velocity_kinematic_command[2]
+        cmd_vel_msg.twist.angular.z = new_body_frame_velocity_kinematic_command[3]
+        self.cmd_vel_pub.publish(cmd_vel_msg)
 
-        body_frame_velocity_dynamic_command = self.Ku_inverse @ (
-            derivative_body_frame_velocity_kinematic_command + self.K @ (self.body_frame_velocity_kinematic_command - body_frame_current_velocity) + self.Kv @ body_frame_current_velocity
-        )
-        self.velocity_command_data.append(body_frame_velocity_dynamic_command)
+        # Update plots
+        self.update_plots(desired_pose)
 
+    def update_plots(self, desired_pose):
         # Update trajectory plot
         self.ax1.clear()
         trajetoria = np.array([pose for (pose, vel) in self.path_points])
@@ -182,13 +207,6 @@ class PathController(Node):
 
         plt.pause(0.01)
 
-        # Update robot model only in simulation
-        if self.simulation:
-            # Robot model update
-            acceleration = self.Ku @ body_frame_velocity_dynamic_command - self.Kv @ self.world_frame_current_velocity
-            self.world_frame_current_velocity += acceleration / 30.0
-            self.current_pose += self.world_frame_current_velocity / 30.0
-
     def save_results(self):
         if self.error_data and self.time_data:
             data = {
@@ -212,7 +230,6 @@ def main(args=None):
     rclpy.spin(controller)
     controller.destroy_node()
     rclpy.shutdown()
-    plt.show()
 
 if __name__ == '__main__':
     main()
