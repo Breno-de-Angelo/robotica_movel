@@ -157,15 +157,24 @@ class PathController(Node):
         A_inverse = np.linalg.inv(A)
         world_frame_velocity_kinematic_command = desired_velocity + self.Ls * np.tanh(self.Kp @ pose_error)
         new_body_frame_velocity_kinematic_command = A_inverse @ world_frame_velocity_kinematic_command
+
+        derivative_body_frame_velocity_kinematic_command = (new_body_frame_velocity_kinematic_command - self.body_frame_velocity_kinematic_command) * 30.0
+        self.body_frame_velocity_kinematic_command = new_body_frame_velocity_kinematic_command
+        body_frame_current_velocity = A_inverse @ self.world_frame_current_velocity
+
+        body_frame_velocity_dynamic_command = self.Ku_inverse @ (
+            derivative_body_frame_velocity_kinematic_command + self.K @ (self.body_frame_velocity_kinematic_command - body_frame_current_velocity) + self.Kv @ body_frame_current_velocity
+        )
+        self.velocity_command_data.append(body_frame_velocity_dynamic_command)
         
         # Publish cmd_vel as TwistStamped
         cmd_vel_msg = TwistStamped()
         cmd_vel_msg.header.stamp = self.get_clock().now().to_msg()
         cmd_vel_msg.header.frame_id = 'base_link'
-        cmd_vel_msg.twist.linear.x = new_body_frame_velocity_kinematic_command[0]
-        cmd_vel_msg.twist.linear.y = new_body_frame_velocity_kinematic_command[1]
-        cmd_vel_msg.twist.linear.z = new_body_frame_velocity_kinematic_command[2]
-        cmd_vel_msg.twist.angular.z = new_body_frame_velocity_kinematic_command[3]
+        cmd_vel_msg.twist.linear.x = body_frame_velocity_dynamic_command[0]
+        cmd_vel_msg.twist.linear.y = body_frame_velocity_dynamic_command[1]
+        cmd_vel_msg.twist.linear.z = body_frame_velocity_dynamic_command[2]
+        cmd_vel_msg.twist.angular.z = body_frame_velocity_dynamic_command[3]
         self.cmd_vel_pub.publish(cmd_vel_msg)
 
         # Update plots

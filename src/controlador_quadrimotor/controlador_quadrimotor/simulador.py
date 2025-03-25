@@ -1,5 +1,6 @@
 import numpy as np
 import rclpy
+import time
 from rclpy.node import Node
 from geometry_msgs.msg import TwistStamped, PoseStamped
 
@@ -12,8 +13,10 @@ class RobotSimulator(Node):
         self.Kv = np.diag([0.18227, 0.17095, 4.001, 4.7295])
 
         # Initialize state variables
-        self.current_pose = np.array([2.0, -1.0, 0.5, np.deg2rad(5.0)])  # [x, y, z, yaw]
+        self.current_pose = np.array([-1.0, 0.0, 0.5, np.deg2rad(5.0)])  # [x, y, z, yaw]
         self.world_frame_current_velocity = np.array([0.0, 0.0, 0.0, 0.0])
+        self.command = np.array([0.0, 0.0, 0.0, 0.0])
+        self.t_start = time.time()
 
         # Subscriber for cmd_vel
         self.cmd_vel_sub = self.create_subscription(
@@ -30,8 +33,8 @@ class RobotSimulator(Node):
             10
         )
 
-        # Timer for updating and publishing pose at 200 Hz
-        self.timer = self.create_timer(1.0 / 200.0, self.update_pose)
+        # Timer for updating and publishing pose at 30 Hz
+        self.timer = self.create_timer(1.0 / 30.0, self.update_pose)
 
     def cmd_vel_callback(self, msg):
         # Extract body frame velocities from TwistStamped
@@ -49,13 +52,21 @@ class RobotSimulator(Node):
         vz_world = vz_body
 
         # Update world frame velocity
-        self.world_frame_current_velocity = np.array([vx_world, vy_world, vz_world, yaw_rate])
+        self.command = np.array([vx_world, vy_world, vz_world, yaw_rate])
 
     def update_pose(self):
-        # Update robot pose using the dynamics model
-        acceleration = self.Ku @ self.world_frame_current_velocity - self.Kv @ self.world_frame_current_velocity
-        self.world_frame_current_velocity += acceleration / 200.0
-        self.current_pose += self.world_frame_current_velocity / 200.0
+        current_time = time.time()
+        delta_t = current_time - self.t_start
+        self.t_start = current_time
+
+        # Simple model
+        # self.world_frame_current_velocity = self.command
+        # self.current_pose += self.world_frame_current_velocity * delta_t
+
+        # Dynamic model
+        acceleration = self.Ku @ self.command - self.Kv @ self.world_frame_current_velocity
+        self.world_frame_current_velocity += acceleration / 30.0
+        self.current_pose += self.world_frame_current_velocity / 30.0
 
         # Publish current pose as PoseStamped
         pose_msg = PoseStamped()
