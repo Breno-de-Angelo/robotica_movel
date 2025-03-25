@@ -3,6 +3,8 @@ import time
 import matplotlib.pyplot as plt
 import scipy.io
 import rospy
+import sys
+import select
 from geometry_msgs.msg import PoseStamped, TwistStamped
 
 class TrajectoryController:
@@ -10,6 +12,7 @@ class TrajectoryController:
         rospy.init_node('trajectory_controller', anonymous=True)
         
         self.simulation = rospy.get_param('~simulation', True)
+        rospy.loginfo(f"simulation: {self.simulation}")
         self.rate = rospy.Rate(30)  # 30 Hz
         
         self.Ku = np.diag([0.8417, 0.8354, 3.966, 9.8524])
@@ -21,11 +24,15 @@ class TrajectoryController:
 
         self.K = np.diag([1.0, 1.0, 1.0, 1.0])
 
-        self.current_pose = np.array([2.0, -1.0, 0.5, np.deg2rad(5.0)])
         self.world_frame_current_velocity = np.array([0.0, 0.0, 0.0, 0.0])
         self.body_frame_velocity_kinematic_command = np.array([0.0, 0.0, 0.0, 0.0])
         self.t_start = time.time()
         self.last_pose_timestamp = time.time()
+
+        if self.simulation:
+            self.current_pose = np.array([0.0, 0.0, 0.5, np.deg2rad(5.0)])
+        else:
+            self.current_pose = None
 
         if not self.simulation:
             self.pose_sub = rospy.Subscriber('/current_pose', PoseStamped, self.pose_callback, queue_size=1)
@@ -44,25 +51,42 @@ class TrajectoryController:
         self.ax2 = self.fig.add_subplot(312)
         self.ax2_psi = self.ax2.twinx()
         self.ax3 = self.fig.add_subplot(313)
-    
-    def pose_callback(self, msg):
-        rospy.loginfo(f"{msg.pose.position.x}, {msg.pose.position.y}, {msg.pose.position.z}")
-        if abs(msg.pose.position.x) > 1.2 or abs(msg.pose.position.y) > 1.2 or not (0.1 <= msg.pose.position.z < 2.5):
+
+    def publish_zero_velocity(self):
+        if not self.simulation:
             cmd_vel_msg = TwistStamped()
             cmd_vel_msg.header.stamp = rospy.Time.now()
             cmd_vel_msg.header.frame_id = 'base_link'
             self.cmd_vel_pub.publish(cmd_vel_msg)
+            rospy.loginfo("Emergency stop: Published zero velocity.")
+
+    def pose_callback(self, msg):
+        rospy.loginfo(f"{msg.pose.position.x}, {msg.pose.position.y}, {msg.pose.position.z}")
+        if abs(msg.pose.position.x) > 2.0 or abs(msg.pose.position.y) > 1.2 or not (0.1 <= msg.pose.position.z < 2.5):
+            self.publish_zero_velocity()
             rospy.loginfo("World exceeded...")
             self.shutdown_module()
+        self.current_pose = np.array([
+            msg.pose.position.x,
+            msg.pose.position.y,
+            msg.pose.position.z,
+            2 * np.arctan2(msg.pose.orientation.z, msg.pose.orientation.w)
+        ])
         self.last_pose_timestamp = time.time()
 
     def trajectory_fn(self, t):
-        xd = np.cos(2 * np.pi * t / 25)
-        yd = np.sin(2 * np.pi * t / 25)
-        zd = 1.5
-        psid = np.deg2rad(45)
-        dxdt = -2 * np.pi / 25 * np.sin(2 * np.pi * t / 25)
-        dydt = 2 * np.pi / 25 * np.cos(2 * np.pi * t / 25)
+        # xd = np.cos(2 * np.pi * t / 25)
+        # yd = np.sin(2 * np.pi * t / 25)
+        # zd = 1.5
+        # psid = np.deg2rad(45)
+        # dxdt = -2 * np.pi / 25 * np.sin(2 * np.pi * t / 25)
+        # dydt = 2 * np.pi / 25 * np.cos(2 * np.pi * t / 25)
+        xd = 0.0
+        yd = 0.0
+        zd = 1.0
+        psid = 0.0
+        dxdt = 0.0
+        dydt = 0.0
         return np.array([xd, yd, zd, psid]), np.array([dxdt, dydt, 0.0, 0.0])
     
     def direct_kinematics_matrix(self, psi):
@@ -72,15 +96,33 @@ class TrajectoryController:
             [0, 0, 1, 0],
             [0, 0, 0, 1]
         ])
-    
+
+    def key_pressed(self):
+        return select.select([sys.stdin], [], [], 0)[0]
+
     def control_loop(self):
         while not rospy.is_shutdown():
+            if self.key_pressed():
+                rospy.logwarn("Key press detected! Stopping robot...")
+                self.publish_zero_velocity()
+                rospy.signal_shutdown("Manual Interrupt")
+                break
+
+            if self.current_pose is None:
+                rospy.logwarn("Pose not received yet")
+                self.rate.sleep()
+                continue
+
             if not self.simulation and time.time() - self.last_pose_timestamp > 2.0:
                 rospy.logerr("2 seconds without odom")
+                self.publish_zero_velocity()
+                self.save_results()
+                self.shutdown_module()
                 return
             
             t = time.time() - self.t_start
             if t > 75:
+                self.publish_zero_velocity()
                 self.save_results()
                 rospy.loginfo("End of trajectory. Exiting...")
                 self.shutdown_module()
@@ -92,12 +134,16 @@ class TrajectoryController:
             self.time_data.append(t)
             self.robot_pose_data.append(self.current_pose)
             self.desired_pose_data.append(desired_pose)
-            
+
+            rospy.loginfo(f"desired_pose: {desired_pose}")
+            rospy.loginfo(f"current_pose: {self.current_pose}")
+
             A = self.direct_kinematics_matrix(self.current_pose[3])
             A_inverse = np.linalg.inv(A)
             world_frame_velocity_kinematic_command = desired_velocity + self.Ls * np.tanh(self.Kp @ pose_error)
+            rospy.loginfo(f"world_frame_velocity_kinematic_command: {world_frame_velocity_kinematic_command}")
             new_body_frame_velocity_kinematic_command = A_inverse @ world_frame_velocity_kinematic_command
-            
+
             derivative_body_frame_velocity_kinematic_command = (new_body_frame_velocity_kinematic_command - self.body_frame_velocity_kinematic_command) * 30.0
             self.body_frame_velocity_kinematic_command = new_body_frame_velocity_kinematic_command
             body_frame_current_velocity = A_inverse @ self.world_frame_current_velocity
@@ -105,8 +151,11 @@ class TrajectoryController:
             body_frame_velocity_dynamic_command = self.Ku_inverse @ (
                 derivative_body_frame_velocity_kinematic_command + self.K @ (self.body_frame_velocity_kinematic_command - body_frame_current_velocity) + self.Kv @ body_frame_current_velocity
             )
+            rospy.loginfo(f"unclipped command: {body_frame_velocity_dynamic_command}")
+            np.clip(body_frame_velocity_dynamic_command, -1.0, 1.0, out=body_frame_velocity_dynamic_command)
+            rospy.loginfo(f"command: {body_frame_velocity_dynamic_command}")
             self.velocity_command_data.append(body_frame_velocity_dynamic_command)
-            
+
             # Update trajectory plot
             self.ax1.clear()
             t_values = np.linspace(0, 75, 500)
@@ -146,18 +195,19 @@ class TrajectoryController:
             self.ax3.plot(self.time_data, y_cmd, label="Y command")
             self.ax3.plot(self.time_data, z_cmd, label="Z command")
             self.ax3.legend(loc="upper left")
-            plt.pause(0.01)
+            # plt.pause(0.01)
 
             # Update robot model only in simulation
             if self.simulation:
                 # Robot model update
+                rospy.loginfo(f"{body_frame_velocity_dynamic_command}")
                 acceleration = self.Ku @ body_frame_velocity_dynamic_command - self.Kv @ self.world_frame_current_velocity
                 self.world_frame_current_velocity += acceleration / 30.0
                 self.current_pose += self.world_frame_current_velocity / 30.0
             else:
                 # Publish cmd_vel as TwistStamped
                 cmd_vel_msg = TwistStamped()
-                cmd_vel_msg.header.stamp = self.get_clock().now().to_msg()
+                cmd_vel_msg.header.stamp = rospy.Time.now()
                 cmd_vel_msg.header.frame_id = 'base_link'
                 cmd_vel_msg.twist.linear.x = body_frame_velocity_dynamic_command[0]
                 cmd_vel_msg.twist.linear.y = body_frame_velocity_dynamic_command[1]
@@ -180,6 +230,7 @@ class TrajectoryController:
             rospy.loginfo("Results saved at 'simulation_results.mat'.")
     
     def shutdown_module(self):
+        self.publish_zero_velocity()
         rospy.signal_shutdown("Shutting down controller.")
         plt.close('all')
 
