@@ -5,7 +5,7 @@ import scipy.io
 import rospy
 import sys
 import select
-from geometry_msgs.msg import PoseStamped, TwistStamped
+from geometry_msgs.msg import PoseStamped, Twist
 
 class TrajectoryController:
     def __init__(self):
@@ -19,7 +19,7 @@ class TrajectoryController:
         self.Ku_inverse = np.linalg.inv(self.Ku)
         self.Kv = np.diag([0.18227, 0.17095, 4.001, 4.7295])
 
-        self.Kp = np.diag([10.0, 10.0, 10.0, 10.0])
+        self.Kp = np.diag([1.0, 1.0, 1.0, 1.0])
         self.Ls = np.array([1.0, 1.0, 1.0, 1.0])
 
         self.K = np.diag([1.0, 1.0, 1.0, 1.0])
@@ -30,13 +30,14 @@ class TrajectoryController:
         self.last_pose_timestamp = time.time()
 
         if self.simulation:
-            self.current_pose = np.array([0.0, 0.0, 0.5, np.deg2rad(5.0)])
+            # self.current_pose = np.array([0.0, 0.0, 0.5, np.deg2rad(5.0)])
+            self.current_pose = np.array([-1.25, 0.1, 0.1, np.deg2rad(5.0)])
         else:
             self.current_pose = None
 
         if not self.simulation:
             self.pose_sub = rospy.Subscriber('/current_pose', PoseStamped, self.pose_callback, queue_size=1)
-            self.cmd_vel_pub = rospy.Publisher('/cmd_vel', TwistStamped, queue_size=10)
+            self.cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
         
         self.error_data = []
         self.time_data = []
@@ -54,14 +55,14 @@ class TrajectoryController:
 
     def publish_zero_velocity(self):
         if not self.simulation:
-            cmd_vel_msg = TwistStamped()
-            cmd_vel_msg.header.stamp = rospy.Time.now()
-            cmd_vel_msg.header.frame_id = 'base_link'
+            cmd_vel_msg = Twist()
+            # cmd_vel_msg.header.stamp = rospy.Time.now()
+            # cmd_vel_msg.header.frame_id = 'base_link'
             self.cmd_vel_pub.publish(cmd_vel_msg)
             rospy.loginfo("Emergency stop: Published zero velocity.")
 
     def pose_callback(self, msg):
-        rospy.loginfo(f"{msg.pose.position.x}, {msg.pose.position.y}, {msg.pose.position.z}")
+        # rospy.loginfo(f"{msg.pose.position.x}, {msg.pose.position.y}, {msg.pose.position.z}")
         if abs(msg.pose.position.x) > 2.0 or abs(msg.pose.position.y) > 1.2 or not (0.1 <= msg.pose.position.z < 2.5):
             self.publish_zero_velocity()
             rospy.loginfo("World exceeded...")
@@ -75,15 +76,15 @@ class TrajectoryController:
         self.last_pose_timestamp = time.time()
 
     def trajectory_fn(self, t):
-        # xd = np.cos(2 * np.pi * t / 25)
-        # yd = np.sin(2 * np.pi * t / 25)
+        # xd = 1.0 * np.cos(2 * np.pi * t / 25)
+        # yd = 1.0 * np.sin(2 * np.pi * t / 25)
         # zd = 1.5
         # psid = np.deg2rad(45)
-        # dxdt = -2 * np.pi / 25 * np.sin(2 * np.pi * t / 25)
-        # dydt = 2 * np.pi / 25 * np.cos(2 * np.pi * t / 25)
+        # dxdt = -1.0 * 2 * np.pi / 25 * np.sin(2 * np.pi * t / 25)
+        # dydt = 1.0 * 2 * np.pi / 25 * np.cos(2 * np.pi * t / 25)
         xd = 0.0
         yd = 0.0
-        zd = 1.0
+        zd = 1.5
         psid = 0.0
         dxdt = 0.0
         dydt = 0.0
@@ -105,6 +106,7 @@ class TrajectoryController:
             if self.key_pressed():
                 rospy.logwarn("Key press detected! Stopping robot...")
                 self.publish_zero_velocity()
+                self.save_results()
                 rospy.signal_shutdown("Manual Interrupt")
                 break
 
@@ -206,13 +208,13 @@ class TrajectoryController:
                 self.current_pose += self.world_frame_current_velocity / 30.0
             else:
                 # Publish cmd_vel as TwistStamped
-                cmd_vel_msg = TwistStamped()
-                cmd_vel_msg.header.stamp = rospy.Time.now()
-                cmd_vel_msg.header.frame_id = 'base_link'
-                cmd_vel_msg.twist.linear.x = body_frame_velocity_dynamic_command[0]
-                cmd_vel_msg.twist.linear.y = body_frame_velocity_dynamic_command[1]
-                cmd_vel_msg.twist.linear.z = body_frame_velocity_dynamic_command[2]
-                cmd_vel_msg.twist.angular.z = body_frame_velocity_dynamic_command[3]
+                cmd_vel_msg = Twist()
+                # cmd_vel_msg.header.stamp = rospy.Time.now()
+                # cmd_vel_msg.header.frame_id = 'base_link'
+                cmd_vel_msg.linear.x = body_frame_velocity_dynamic_command[0]
+                cmd_vel_msg.linear.y = body_frame_velocity_dynamic_command[1]
+                cmd_vel_msg.linear.z = body_frame_velocity_dynamic_command[2]
+                cmd_vel_msg.angular.z = body_frame_velocity_dynamic_command[3]
                 self.cmd_vel_pub.publish(cmd_vel_msg)
 
             self.rate.sleep()
@@ -226,8 +228,8 @@ class TrajectoryController:
                 'desired_pose': np.array(self.desired_pose_data),
                 'velocity_command': np.array(self.velocity_command_data)
             }
-            scipy.io.savemat('simulation_results.mat', data)
-            rospy.loginfo("Results saved at 'simulation_results.mat'.")
+            scipy.io.savemat('posicionamento.mat', data)
+            rospy.loginfo("Results saved at 'posicionamento.mat'.")
     
     def shutdown_module(self):
         self.publish_zero_velocity()
