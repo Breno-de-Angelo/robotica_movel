@@ -29,6 +29,29 @@ $$
 \ddot{\mathbf{x}}^b = \mathbf{K}_u\mathbf{U} - \mathbf{K}_v\dot{\mathbf{x}}^b
 $$
 
+Ou seja, a aceleração causada no quadrimotor é uma combinação do sinal de controle enviado a ele, devido à propulsão, e de sua velocidade atual, devido ao atrito viscoso. Ambas são matrizes diagonais positivo-definidas.
+
+Assim, ao se projetar um controlador dinâmico segundo a lei abaixo, é possível se comprovar a estabilidade assintótica do controlador através do método de Lyapunov.
+
+$$
+\mathbf{v}_r = \mathbf{K}_u^{-1}[\dot{\mathbf{v}}_d + \mathbf{K}(\mathbf{v}_d - \dot{\mathbf{x}}^b) + \mathbf{K}_v\dot{\mathbf{x}}^b]
+$$
+
+Onde $\mathbf{v}_d$ é a velocidade desejada advinda do controlador cinemático e $\mathbf{K}$ é uma matriz diagonal de ganhos. Para que o erro seja minimizado, $\mathbf{K}$ deve ser uma matriz diagonal positivo-definida (neste caso se prova
+a estabilidade assintótica).
+
+Assim, a estrutura de controle completa receberá como entrada $\mathbf{x}_d^w$ e $\dot{\mathbf{x}}_d^w$ e produzirá o sinal de controle do robô. Para que o controlador tenha sucesso, é necessário que a planta seja corretamente identificada
+($\mathbf{K}_u$ e \mathbf{K}_v$), através de uma experimentação que leve o quadrimotor a operar em condições diversas. Além disso, é preciso uma etapa experimental de ajuste dos ganhos (\mathbf{K}_p) e saturação (\mathbf{L}_s) do controlador cinemático e dos ganhos (\mathbf{K}) do controlador dinâmico.
+
+É necessário ainda determinar $\mathbf{x}_d^w$ e $\dot{\mathbf{x}}_d^w$. 
+
+Para o caso da trajetória o reultado é imediato. A trajetória é definida pela função $\mathbf{x}(t)$ e a sua derivada pode ser calculada analiticamente (como impelementada neste repositório) ou numericamente.
+
+Para o caso de seguimento de caminho, o caminho é definido como um conjunto de pontos sequencias, determinados pela abcissa curvilínea `s`. Para cada ponto do caminho é computado o vetor tangente ao caminho chamado $\mathbf{T}$.
+será implementado utilizando as seguintes regras:
+- Calcular a distância do robô ao caminho e descobrir o ponto mais próximo ao robô no caminho.
+- Caso a distância 
+
 # Método experimental
 
 O trabalho consiste em realizar o seguimento de trajetória e o seguimento de caminho através de uma malha de controle de laço interno e laço externo para o quadrimotor Bebob2.
