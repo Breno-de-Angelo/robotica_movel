@@ -54,6 +54,8 @@ será implementado utilizando as seguintes regras:
 - Caso a distância seja maior que $\epsilon$, $\dot{\mathbf{x}}_d = \mathbf{0}$
 - Caso contrário,  $\dot{\mathbf{x}}_ d = V_e \cdot \mathbf{T}_{closest}$
 
+Destaca-se que toda essa análise é resultado da simplificação do modelo do quadrimotor. O modelo utilizado é válido para velocidades baixas, que ao invés de considerar a pose 6D do robô, utiliza apenas a posição e a rotação ao redor do eixo z.
+
 # Método experimental
 
 O trabalho consiste em realizar o seguimento de trajetória e o seguimento de caminho através de uma malha de controle de laço interno e laço externo para o quadrimotor Bebob2.
