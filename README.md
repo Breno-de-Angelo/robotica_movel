@@ -84,6 +84,16 @@ Já o caminho é descrito por:
 
 Com $0 \le s \le 75$ e discretizado em 5001 pontos.
 
+Para o modelo do quadrimotor foram utilizados valores obtidos previamente em experimentos do laboratório, sendo $\mathbf{K}_u = diag(0,8417; 0,8354; 3,966; 9,8524)$ e sendo $\mathbf{K}_v = diag(0,18227; 0,17095; 4,001; 4,7295)$.
+
+Os ganhos e valores de saturação do controlador cinemático e dinâmico foram testados e escolheu-se $\mathbf{K}_p = diag(1,0; 1,0; 1,0; 1,0)$, $\mathbf{L}_s = [1,0; 1,0; 1,0; 1,0]$ e $\mathbf{K} = diag(1,0; 1,0; 1,0; 1,0)$.
+
+Para o seguidor de caminho utilizou-se $V_e=0,1$ m/s e $\epsilon = 0,2$ m.
+
+A saída do controlador dinâmico foi limitada entre -1.0 e 1.0, como o quadrimotor Bebob2 espera receber.
+
+O código foi inicialmente executado em modo de simulação para realizar o ajustes de todos os parâmetros e, uma vez incluídas as medidas de segurança no código, foi feito o experimento real.
+
 # Resultados
 
 Para cada um dos experimentos foi gerado um arquivo .mat com os resultados e analisados por scripts matlab que estão no diretório de resultados.
