@@ -65,6 +65,7 @@ Para um resultado preliminar, foi realizada a tarefa de posicionamento usando o 
 - $y_d(t) = 0$
 - $z_d(t) = 1,5$
 - $\psi_d(t) = 45\degree$
+
 Com $0 \le t \le 75$
 
 Dessa forma, a trajetória pode ser descrita como
@@ -72,6 +73,7 @@ Dessa forma, a trajetória pode ser descrita como
 - $y_d(t) = \sin (\frac{2\pi t}{25})$
 - $z_d(t) = 1,5$
 - $\psi_d(t) = 45\degree$
+
 Com $0 \le t \le 75$
 
 Já o caminho é descrito por:
@@ -87,6 +89,8 @@ Com $0 \le s \le 75$ e discretizado em 5001 pontos.
 Para cada um dos experimentos foi gerado um arquivo .mat com os resultados e analisados por scripts matlab que estão no diretório de resultados.
 
 ## Posicionamento
+
+
 
 ## Seguimento de Trajetória
 
