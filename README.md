@@ -41,7 +41,7 @@ Onde $\mathbf{v}_d$ é a velocidade desejada advinda do controlador cinemático 
 a estabilidade assintótica).
 
 Assim, a estrutura de controle completa receberá como entrada $\mathbf{x}_d^w$ e $\dot{\mathbf{x}}_d^w$ e produzirá o sinal de controle do robô. Para que o controlador tenha sucesso, é necessário que a planta seja corretamente identificada
-($\mathbf{K}_u$ e \mathbf{K}_v$), através de uma experimentação que leve o quadrimotor a operar em condições diversas. Além disso, é preciso uma etapa experimental de ajuste dos ganhos (\mathbf{K}_p) e saturação (\mathbf{L}_s) do controlador cinemático e dos ganhos (\mathbf{K}) do controlador dinâmico.
+($\mathbf{K}_u$ e $\mathbf{K}_v$), através de uma experimentação que leve o quadrimotor a operar em condições diversas. Além disso, é preciso uma etapa experimental de ajuste dos ganhos ($\mathbf{K}_p$) e saturação ($\mathbf{L}_s$) do controlador cinemático e dos ganhos ($\mathbf{K}$) do controlador dinâmico.
 
 É necessário ainda determinar $\mathbf{x}_d^w$ e $\dot{\mathbf{x}}_d^w$. 
 
