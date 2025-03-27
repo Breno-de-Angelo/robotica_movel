@@ -102,11 +102,27 @@ Para cada um dos experimentos foi gerado um arquivo .mat com os resultados e ana
 
 ## Posicionamento
 
+https://github.com/user-attachments/assets/a4b1d378-3328-4e16-9f9b-357d94694558
 
+![sinal_posicionamento](https://github.com/user-attachments/assets/29f868e4-191d-49e7-9a4a-6607ef6e758a)
+
+![erro_posicionamento](https://github.com/user-attachments/assets/63490541-5508-483c-b33a-b050d44b790d)
 
 ## Seguimento de Trajetória
 
+https://github.com/user-attachments/assets/c1539648-ac12-420d-b642-c9b4eabd2a98
+
+![sinal_trajetoria](https://github.com/user-attachments/assets/754ac97d-4929-4ae4-b315-a49b841275d2)
+
+![erro_trajetoria](https://github.com/user-attachments/assets/49d007db-5c77-4323-9300-746292b5fd14)
+
 ## Seguimento de Caminho
+
+https://github.com/user-attachments/assets/63b995e6-b167-4b86-be4a-68478222c918
+
+![sinal_caminho](https://github.com/user-attachments/assets/d75131bd-3bdd-47ae-b23e-003840434cf8)
+
+![erro_caminho](https://github.com/user-attachments/assets/71d17693-cfff-4bfd-bd16-a5cfd3a335f1)
 
 # Conclusões
 
